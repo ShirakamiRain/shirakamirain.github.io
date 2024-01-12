@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://shirakamirain.github.io</id>
+    <title>ShirakamiRain&apos;s Home</title>
+    <updated>2024-01-12T06:09:36.237Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://shirakamirain.github.io"/>
+    <link rel="self" href="https://shirakamirain.github.io/atom.xml"/>
+    <subtitle>白上雨の小窝</subtitle>
+    <logo>https://shirakamirain.github.io/images/avatar.png</logo>
+    <icon>https://shirakamirain.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2024, ShirakamiRain&apos;s Home</rights>
+    <entry>
+        <title type="html"><![CDATA[Docker Linux容器中无法使用systemctl的解决方法]]></title>
+        <id>https://shirakamirain.github.io/post/docker-linux-rong-qi-zhong-wu-fa-shi-yong-systemctl-de-jie-jue-fang-fa/</id>
+        <link href="https://shirakamirain.github.io/post/docker-linux-rong-qi-zhong-wu-fa-shi-yong-systemctl-de-jie-jue-fang-fa/">
+        </link>
+        <updated>2023-12-12T02:24:58.000Z</updated>
+        <content type="html"><![CDATA[<p>今日测试搭建环境，发现直接docker run建立centos容器无法使用systemctl及systemd<br>
+<img src="https://shirakamirain.github.io/post-images/1702348742851.png" alt="" loading="lazy"><br>
+在另一次复现中，出现另一种报错：</p>
+<p>System has not been booted with systemd as init system (PID 1). Can't operate.</p>
+<p>网友也指出了另一种报错，但本人目前并未遇到：<br>
+Failed to connect to bus: No such file or directory</p>
+<p>想起之前对Docker原理的学习，思考出大致原因：容器里面是没有 systemd 进程的，所以不能正常开启 systemctl 。<br>
+因为Docker本质上只是基于Linux内核的NameSpcae特性提供了进程隔离，不是操作系统的虚拟。而这也是为什么Docker能够做到比虚拟机性能开销更小(当然，同时功能上也会有一定残缺)的原因。<br>
+回到正题，容器没有systemd进程，然后呢？<br>
+同时，不同于正常的Linux，容器的进程中，PID为1的init进程并非正常Linux的systemd，通常是直接挂着/bin/bash。<br>
+那么我们手动挂载dbus服务如何？<br>
+很不幸，由于systemd没有被运行为PID 1 ，问题仍然是没有完全解决的。<br>
+我研究了一种解决方案：通过 init 在后台运行一个 docker容器，然后再通过 exec 的方式进入到容器中，不过需要注意的是不同的系统 init 程序的路径不同。<br>
+例如Centos 7:</p>
+<pre><code>docker run -tid --name {container_name} --privileged=true {centos_7_mirror_name} /usr/sbin/init
+docker exec -it {container_name} /bin/bash
+</code></pre>
+<p>以及Ubuntu:</p>
+<pre><code>docker run -tid --name {container_name} --privileged=true {ubuntu_mirror__name} /sbin/init
+docker exec -it {container_name} /bin/bash
+</code></pre>
+<p>总结为思路:<br>
+·启动容器时添加<code>--privileged=true</code>参数——使该容器内的环境操作权限更大，对完整系统的还原度更高(可以操作更多系统相关的部分)。<br>
+·通过<code>init</code>创建一个容器，并且不直接进入，而是挂在后台，稍后使用<code>exec /bin/bash</code>进入。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[CSS标签的优先级]]></title>
+        <id>https://shirakamirain.github.io/post/css/</id>
+        <link href="https://shirakamirain.github.io/post/css/">
+        </link>
+        <updated>2023-12-05T03:31:28.000Z</updated>
+        <content type="html"><![CDATA[<p>当创建的样式表越来越复杂时，一个标签的样式将会受到越来越多的影响，这种影响可能来自周围的标签，也可能来自其自身。下面我们从这两方面去看看 CSS 样式的优先级。</p>
+<p>CSS 的继承性<br>
+CSS 的继承特性指的是应用在一个标签上的那些 CSS 属性被传到其子标签上。看下面的 HTML 结构：</p>
+<pre><code class="language-html">&lt;div&gt;
+    &lt;p&gt;&lt;/p&gt;
+&lt;/div&gt;
+</code></pre>
+<p>如果<code>&lt;div&gt;</code>有个属性 <code>color: red</code>，则这个属性将被 <code>&lt;p&gt;</code> 继承，即 <code>&lt;p&gt;</code>也拥有属性 <code>color: red</code>。<br>
+由上可见，当网页比较复杂， HTML 结构嵌套较深时，一个标签的样式将深受其祖先标签样式的影响。影响的规则是：<br>
+CSS 优先规则1： 最近的祖先样式比其他祖先样式优先级高。</p>
+<p>例1：</p>
+<pre><code class="language-html">&lt;!-- 类名为 son 的 div 的 color 为 blue --&gt;
+&lt;div style=&quot;color: red&quot;&gt;
+    &lt;div style=&quot;color: blue&quot;&gt;
+        &lt;div class=&quot;son&quot;&gt;&lt;/div&gt;
+    &lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+<p>如果我们把一个标签从祖先那里继承来的而自身没有的属性叫做&quot;祖先样式&quot;，那么&quot;直接样式&quot;就是一个标签直接拥有的属性。又有如下规则：<br>
+CSS 优先规则2：&quot;直接样式&quot;比&quot;祖先样式&quot;优先级高。</p>
+<p>例2：</p>
+<pre><code class="language-html">&lt;!-- 类名为 son 的 div 的 color 为 blue --&gt;
+&lt;div style=&quot;color: red&quot;&gt;
+    &lt;div class=&quot;son&quot; style=&quot;color: blue&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+<p>选择器的优先级<br>
+上面讨论了一个标签从祖先继承来的属性，现在讨论标签自有的属性。在讨论 CSS 优先级之前，先说说 CSS 7 种基础的选择器：<br>
+ID 选择器， 如 <code>#id{}</code><br>
+类选择器， 如 <code>.class{}</code><br>
+属性选择器， 如 <code>[href=&quot;segmentfault.com&quot;]{}</code><br>
+伪类选择器， 如 <code>:hover{}</code><br>
+伪元素选择器， 如 <code>::before{}</code><br>
+标签选择器， 如 <code>span{}</code><br>
+通配选择器， 如 <code>*{}</code><br>
+CSS 优先规则3：优先级关系：内联样式 &gt; ID 选择器 &gt; 类选择器 = 属性选择器 = 伪类选择器 &gt; 标签选择器 = 伪元素选择器</p>
+<p>例3：</p>
+<pre><code class="language-html">// HTML
+&lt;div class=&quot;content-class&quot; id=&quot;content-id&quot; style=&quot;color: black&quot;&gt;&lt;/div&gt;
+</code></pre>
+<pre><code class="language-css">// CSS
+#content-id {
+    color: red;
+}
+.content-class {
+    color: blue;
+}
+div {
+    color: grey;
+}
+</code></pre>
+<p>最终的 <code>color</code> 为 <code>black</code>，因为内联样式比其他选择器的优先级高。<br>
+所有 CSS 的选择符由上述 7 种基础的选择器或者组合而成，组合的方式有 3 种：<br>
+后代选择符： <code>.father .child{}</code><br>
+子选择符： <code>.father</code> &gt; <code>.child{}</code><br>
+相邻选择符: <code>.bro1</code> + <code>.bro2{}</code><br>
+当一个标签同时被多个选择符选中，我们便需要确定这些选择符的优先级。我们有如下规则：<br>
+CSS 优先规则4：计算选择符中 ID 选择器的个数（a），计算选择符中类选择器、属性选择器以及伪类选择器的个数之和（b），计算选择符中标签选择器和伪元素选择器的个数之和（c）。按 a、b、c 的顺序依次比较大小，大的则优先级高，相等则比较下一个。若最后两个的选择符中 a、b、c 都相等，则按照&quot;就近原则&quot;来判断。</p>
+<p>例4：</p>
+<pre><code class="language-html">// HTML
+&lt;div id=&quot;con-id&quot;&gt;
+    &lt;span class=&quot;con-span&quot;&gt;&lt;/span&gt;
+&lt;/div&gt;
+</code></pre>
+<pre><code class="language-css">// CSS
+#con-id span {
+    color: red;
+}
+div .con-span {
+    color: blue;
+}
+</code></pre>
+<p>由规则 4 可见，<code>&lt;span&gt;</code> 的 <code>color</code> 为 <code>red</code>。<br>
+如果外部样式表和内部样式表中的样式发生冲突会出现什么情况呢？这与样式表在 HTML 文件中所处的位置有关。样式被应用的位置越在下面则优先级越高，其实这仍然可以用规则 4 来解释。</p>
+<p>例5：</p>
+<pre><code class="language-html">// HTML
+&lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;style-link.css&quot;&gt;
+&lt;style type=&quot;text/css&quot;&gt;
+@import url(style-import.css); 
+div {
+    background: blue;
+}
+&lt;/style&gt;
+
+&lt;div&gt;&lt;/div&gt;
+</code></pre>
+<pre><code class="language-css">// style-link.css
+div {
+    background: lime;
+}
+
+// style-import.css
+div {
+    background: grey;
+}
+</code></pre>
+<p>从顺序上看，内部样式在最下面，被最晚引用，所以 <code>&lt;div&gt;</code> 的背景色为 <code>blue</code>。<br>
+上面代码中，<code>@import</code> 语句必须出现在内部样式之前，否则文件引入无效。不推荐使用 <code>@import</code> 的方式引用外部样式文件。<br>
+CSS 还提供了一种可以完全忽略以上规则的方法，当你一定、必须确保某一个特定的属性要显示时，可以使用这个技术。<br>
+CSS 优先规则5：属性后插有 <code>!important</code> 的属性拥有最高优先级。若同时插有 <code>!important</code>，则再利用规则 3、4 判断优先级。</p>
+<p>例6：</p>
+<pre><code class="language-html">// HTML
+&lt;div class=&quot;father&quot;&gt;
+    &lt;p class=&quot;son&quot;&gt;&lt;/p&gt;
+&lt;/div&gt;
+</code></pre>
+<pre><code class="language-css">// CSS
+p {
+    background: red !important;
+}
+.father .son {
+    background: blue;
+}
+</code></pre>
+<p>虽然<code> .father .son</code> 拥有更高的权值，但选择器 <code>p</code> 中的 <code>background</code> 属性被插入了 <code>!important</code>， 所以 <code>&lt;p&gt;</code> 的 <code>background</code> 为 <code>red</code>。</p>
+<p>错误的说法<br>
+在学习过程中，你可能发现给选择器加权值的说法，即 ID 选择器权值为 100，类选择器权值为 10，标签选择器权值为 1，当一个选择器由多个 ID 选择器、类选择器或标签选择器组成时，则将所有权值相加，然后再比较权值。这种说法其实是有问题的。比如一个由 11 个类选择器组成的选择器和一个由 1 个 ID 选择器组成的选择器指向同一个标签，按理说 110 &gt; 100，应该应用前者的样式，然而事实是应用后者的样式。错误的原因是：权重的进制是并不是十进制，CSS 权重进制在 IE6 为 256，后来扩大到了 65536，现代浏览器则采用更大的数量。。还是拿刚刚的例子说明。11 个类选择器组成的选择器的总权值为 110，但因为 11 个均为类选择器，所以其实总权值最多不能超过 100， 你可以理解为 99.99，所以最终应用后者样式。</p>
+]]></content>
+    </entry>
+</feed>
